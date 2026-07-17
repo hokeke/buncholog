@@ -4,7 +4,8 @@ import {
   Weight, Flame, ChevronLeft, ChevronRight, Play, 
   Edit3, Trash2, Camera, Upload, Check, AlertCircle, 
   BookOpen, Info, Copy, Download, Sparkles, Feather,
-  Cloud, Settings, Video, StopCircle, FileVideo, Save
+  Cloud, Settings, Video, StopCircle, FileVideo, Save,
+  Film
 } from 'lucide-react';
 
 import { initializeApp } from 'firebase/app';
@@ -661,6 +662,98 @@ export default function App() {
     ? [...activeBirdLogs].sort((a, b) => new Date(b.date) - new Date(a.date))[0]?.weight 
     : null;
 
+  const extractYouTubeId = (url) => {
+    // ShortsのURL形式（/shorts/）にも対応した正規表現に更新
+    const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+    const match = url.match(regExp);
+    return match ? match[1] : false;
+  };
+
+  const renderVideoGallery = () => {
+    const videoList = [];
+    activeBirdLogs.forEach(log => {
+      let urls = [];
+      if (log.videoUrls && log.videoUrls.length > 0) {
+        urls = log.videoUrls;
+      } else if (log.videoUrl) {
+        urls = [log.videoUrl];
+      }
+      
+      urls.forEach((url, index) => {
+        videoList.push({
+          date: log.date,
+          url: url,
+          memo: log.memo,
+          id: `${log.id}_${index}`
+        });
+      });
+    });
+
+    videoList.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const grouped = {};
+    videoList.forEach(v => {
+      const month = v.date.substring(0, 7); // YYYY-MM
+      if (!grouped[month]) grouped[month] = [];
+      grouped[month].push(v);
+    });
+
+    if (Object.keys(grouped).length === 0) {
+      return (
+        <div className="bg-white p-10 rounded-2xl border border-rose-100 shadow-sm text-center flex flex-col items-center justify-center min-h-[300px]">
+          <Film className="w-12 h-12 text-slate-300 mb-3" />
+          <p className="text-slate-500 text-sm font-bold">登録されている動画がありません。</p>
+          <p className="text-xs text-slate-400 mt-1">日々の記録にYouTube動画を追加すると、ここにギャラリーとして表示されます。</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {Object.entries(grouped).map(([month, videos]) => {
+          const [y, m] = month.split('-');
+          return (
+            <div key={month} className="bg-white p-5 rounded-2xl border border-rose-100 shadow-sm">
+              <h4 className="font-extrabold text-slate-800 border-b border-rose-100 pb-2 mb-4 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-rose-400" />
+                {y}年 {parseInt(m, 10)}月
+              </h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {videos.map(video => {
+                  const videoId = extractYouTubeId(video.url);
+                  const thumbUrl = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null;
+                  
+                  return (
+                    <div key={video.id} onClick={() => window.open(video.url, '_blank')} className="cursor-pointer group flex flex-col gap-1.5">
+                      <div className="relative bg-slate-900 rounded-xl overflow-hidden aspect-video shadow-sm border border-slate-200 group-hover:border-rose-400 transition-colors">
+                        {thumbUrl ? (
+                          <img src={thumbUrl} alt="thumbnail" className="w-full h-full object-cover opacity-85 group-hover:opacity-100 transition-opacity duration-300 group-hover:scale-105" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-slate-100">
+                            <Play className="w-8 h-8 text-slate-300" />
+                          </div>
+                        )}
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
+                          <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
+                             <Play className="w-5 h-5 fill-white text-white ml-1" />
+                          </div>
+                        </div>
+                        <div className="absolute top-1.5 left-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-md font-bold backdrop-blur-sm shadow-sm">
+                          {video.date.substring(5).replace('-', '/')}
+                        </div>
+                      </div>
+                      {video.memo && <p className="text-[9px] text-slate-500 line-clamp-2 leading-tight px-0.5">{video.memo}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   const renderInteractiveCharts = () => {
     const chartData = getFilteredLogs().filter(l => l.weight !== null || l.food !== null);
     if (chartData.length < 2) {
@@ -1248,26 +1341,32 @@ export default function App() {
             <button onClick={() => openBirdModal(activeBird)} className="absolute top-4 right-4 p-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white transition-colors"><Edit3 className="w-4 h-4" /></button>
           </div>
 
-          <div className="flex bg-white p-1 rounded-xl border border-rose-100 shadow-sm">
+          {/* Tab Navigation */}
+          <div className="flex bg-white p-1 rounded-xl border border-rose-100 shadow-sm w-full overflow-hidden">
             {[
-              { id: 'dashboard', label: 'ダッシュボード', icon: BarChart2 },
-              { id: 'calendar', label: 'カレンダー', icon: Calendar },
-              { id: 'profiles', label: '文鳥たち', icon: Users },
-              { id: 'csv', label: 'データ連携', icon: FileSpreadsheet },
+              { id: 'dashboard', label: 'ダッシュボード', shortLabel: '記録', icon: BarChart2 },
+              { id: 'calendar', label: 'カレンダー', shortLabel: 'カレンダー', icon: Calendar },
+              { id: 'videos', label: '動画ギャラリー', shortLabel: '動画', icon: Film },
+              { id: 'profiles', label: '文鳥たち', shortLabel: 'プロフ', icon: Users },
+              { id: 'csv', label: 'データ連携', shortLabel: 'データ', icon: FileSpreadsheet },
             ].map(tab => {
               const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setCurrentTab(tab.id)}
-                  className={`flex-1 py-3 rounded-lg text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 ${currentTab === tab.id ? 'bg-rose-50 text-rose-500 font-extrabold shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  title={tab.label}
+                  className={`flex-1 py-2 sm:py-3 px-1 rounded-lg font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 min-w-0 ${currentTab === tab.id ? 'bg-rose-50 text-rose-500 font-extrabold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}
                 >
-                  <Icon className="w-4 h-4" /><span>{tab.label}</span>
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline text-xs truncate">{tab.label}</span>
+                  <span className="sm:hidden text-[9px] leading-tight text-center truncate w-full">{tab.shortLabel}</span>
                 </button>
               );
             })}
           </div>
 
+          {/* Tab 1: Dashboard */}
           {currentTab === 'dashboard' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1355,6 +1454,9 @@ export default function App() {
               </div>
             </div>
           )}
+
+          {}
+          {currentTab === 'videos' && renderVideoGallery()}
 
           {currentTab === 'profiles' && (
             <div className="space-y-6">
