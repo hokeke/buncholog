@@ -241,7 +241,7 @@ export default function App() {
     // Load Settings
     let unsubSettings = () => {};
     try {
-      const settingsRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'youtube');
+      const settingsRef = doc(db, 'artifacts', appId, 'settings', 'youtube');
       unsubSettings = onSnapshot(settingsRef, (snapshot) => {
         if (snapshot.exists()) {
           setYoutubeConfig(snapshot.data());
@@ -251,14 +251,14 @@ export default function App() {
       console.warn("Settings load error", e);
     }
 
-    const birdsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'birds');
+    const birdsRef = collection(db, 'artifacts', appId, 'birds');
     const unsubBirds = onSnapshot(birdsRef, async (snapshot) => {
       if (snapshot.empty && !birdsMigrationChecked.current) {
         birdsMigrationChecked.current = true;
         const localBirds = localStorage.getItem('buncholog_birds');
         const dataToSeed = localBirds ? JSON.parse(localBirds) : INITIAL_BIRDS;
         for (const b of dataToSeed) {
-          await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'birds', b.id), b);
+          await setDoc(doc(db, 'artifacts', appId, 'birds', b.id), b);
         }
       } else {
         birdsMigrationChecked.current = true;
@@ -270,7 +270,7 @@ export default function App() {
       }
     }, (err) => console.error(err));
 
-    const logsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'logs');
+    const logsRef = collection(db, 'artifacts', appId, 'logs');
     const unsubLogs = onSnapshot(logsRef, async (snapshot) => {
       if (snapshot.empty && !logsMigrationChecked.current) {
         logsMigrationChecked.current = true;
@@ -280,7 +280,7 @@ export default function App() {
         for (const birdId in dataToSeed) {
           for (const log of dataToSeed[birdId]) {
             const logId = `${birdId}_${log.date}`;
-            await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'logs', logId), {
+            await setDoc(doc(db, 'artifacts', appId, 'logs', logId), {
               ...log, id: logId, birdId
             });
           }
@@ -559,7 +559,7 @@ export default function App() {
       memo: logMemo
     };
 
-    const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'logs', logId);
+    const docRef = doc(db, 'artifacts', appId, 'logs', logId);
     await setDoc(docRef, newLogEntry);
     
     setIsLogModalOpen(false);
@@ -570,7 +570,7 @@ export default function App() {
     setConfirmAction(() => async () => {
       if (!user) return;
       const logId = `${activeBirdId}_${dateStr}`;
-      await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'logs', logId));
+      await deleteDoc(doc(db, 'artifacts', appId, 'logs', logId));
       setIsLogModalOpen(false);
     });
     setConfirmMessage(`${dateStr} の記録を削除しますか？\nこの操作は元に戻せません。`);
@@ -612,7 +612,7 @@ export default function App() {
       memo: birdMemo
     };
 
-    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'birds', birdId), birdData);
+    await setDoc(doc(db, 'artifacts', appId, 'birds', birdId), birdData);
     if (!editingBird) setActiveBirdId(birdId);
     setIsBirdModalOpen(false);
   };
@@ -624,11 +624,11 @@ export default function App() {
     }
     setConfirmAction(() => async () => {
       if (!user) return;
-      await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'birds', id));
+      await deleteDoc(doc(db, 'artifacts', appId, 'birds', id));
       
       const logsToDelete = logs[id] || [];
       for (const log of logsToDelete) {
-        await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'logs', log.id));
+        await deleteDoc(doc(db, 'artifacts', appId, 'logs', log.id));
       }
     });
     setConfirmMessage("この文鳥のプロフィールとすべての記録を削除しますか？\nこの操作は取り消せません。");
@@ -636,9 +636,9 @@ export default function App() {
 
   const saveSettings = async () => {
     if (!user) return;
-    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'youtube'), tempYoutubeConfig);
+    await setDoc(doc(db, 'artifacts', appId, 'settings', 'youtube'), tempYoutubeConfig);
     setIsSettingsModalOpen(false);
-    setAlertMessage("API設定を保存しました。");
+    setAlertMessage("API設定をデータベース(Firestore)に保存しました。");
   };
 
   const getFilteredLogs = () => {
@@ -936,7 +936,7 @@ export default function App() {
               memo: 'CSVからインポートされました'
             };
             newBirds.push(bird);
-            await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'birds', bird.id), bird);
+            await setDoc(doc(db, 'artifacts', appId, 'birds', bird.id), bird);
           }
 
           const logId = `${bird.id}_${date}`;
@@ -955,7 +955,7 @@ export default function App() {
             videoUrl: videoUrls.length > 0 ? videoUrls[0] : ''
           };
 
-          await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'logs', logId), newLog);
+          await setDoc(doc(db, 'artifacts', appId, 'logs', logId), newLog);
           importCount++;
         }
         
