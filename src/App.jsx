@@ -426,7 +426,7 @@ export default function App() {
               categoryId: 22 
             },
             status: {
-              privacyStatus: 'private' 
+              privacyStatus: 'unlisted' 
             }
           };
 
