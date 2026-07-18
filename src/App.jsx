@@ -142,14 +142,7 @@ export default function App() {
 
   const [isUploadingMock, setIsUploadingMock] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [cameraActive, setCameraActive] = useState(false);
-  const [cameraStream, setCameraStream] = useState(null);
-  const [mediaRecorder, setMediaRecorder] = useState(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordedBlob, setRecordedBlob] = useState(null);
   const [selectedFileForUpload, setSelectedFileForUpload] = useState(null);
-  const videoRef = useRef(null);
-  const chunksRef = useRef([]);
 
   // Custom Dialog States
   const [alertMessage, setAlertMessage] = useState('');
@@ -347,58 +340,6 @@ export default function App() {
     return molting;
   };
 
-  const startCameraMock = async () => {
-    setCameraActive(true);
-    setRecordedBlob(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
-      setCameraStream(stream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.muted = true; 
-      }
-    } catch (err) {
-      setAlertMessage("カメラやマイクのアクセスが許可されていないか、利用できません。\nファイル選択をご利用ください。");
-      setCameraActive(false);
-    }
-  };
-
-  const startRecording = () => {
-    chunksRef.current = [];
-    try {
-      const recorder = new MediaRecorder(cameraStream);
-      recorder.ondataavailable = e => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'video/webm' }); 
-        setRecordedBlob(blob);
-      };
-      recorder.start();
-      setMediaRecorder(recorder);
-      setIsRecording(true);
-    } catch (e) {
-      setAlertMessage("このブラウザでは録画機能がサポートされていません。\nファイル選択からアップロードしてください。");
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      mediaRecorder.stop();
-      setIsRecording(false);
-    }
-  };
-
-  const stopCameraMock = () => {
-    if (isRecording) stopRecording();
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop());
-      setCameraStream(null);
-    }
-    setCameraActive(false);
-    setRecordedBlob(null);
-  };
-
   const handleYoutubeUpload = async (fileBlob) => {
     if (!youtubeConfig.clientId) {
       setAlertMessage('YouTube連携が設定されていません。\n右上の「設定アイコン」からクライアントIDを登録してください。');
@@ -459,7 +400,6 @@ export default function App() {
                   const uploadedUrl = `https://www.youtube.com/watch?v=${responseData.id}`;
                   setLogVideoUrls(prev => [...prev, uploadedUrl]);
                   setAlertMessage('YouTubeへのアップロードが完了しました！\n動画の処理が終わるまで再生できない場合があります。');
-                  stopCameraMock();
                   setSelectedFileForUpload(null);
                 } else {
                   setAlertMessage('動画本体のアップロードエラー: ' + uploadXhr.responseText);
@@ -568,7 +508,6 @@ export default function App() {
     await setDoc(docRef, newLogEntry);
     
     setIsLogModalOpen(false);
-    stopCameraMock();
   };
 
   const deleteLog = (dateStr) => {
@@ -1293,10 +1232,6 @@ export default function App() {
             <div className="flex flex-col items-start">
               <div className="flex items-center gap-2">
                 <h1 className="font-extrabold text-base tracking-wider text-rose-500">BUNCHOLOG</h1>
-                <div className="flex items-center gap-1 text-[9px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200" title="データはクラウドに安全に保存されています">
-                  <Cloud className="w-3 h-3" />
-                  <span>クラウド保存</span>
-                </div>
               </div>
               <p className="text-[10px] text-slate-400 font-semibold">文鳥ヘルスケアパートナー</p>
             </div>
@@ -1571,7 +1506,7 @@ export default function App() {
           <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl border border-rose-50 flex flex-col max-h-[90vh]">
             <div className="p-4 bg-rose-500 text-white flex items-center justify-between">
               <h3 className="font-extrabold text-base flex items-center gap-1.5"><Calendar className="w-4 h-4" />健康・活動ログ</h3>
-              <button onClick={() => { setIsLogModalOpen(false); stopCameraMock(); }} className="text-white hover:text-rose-100 font-bold">✕</button>
+              <button onClick={() => setIsLogModalOpen(false)} className="text-white hover:text-rose-100 font-bold">✕</button>
             </div>
             <form onSubmit={saveLog} className="p-5 overflow-y-auto space-y-4">
               <div>
@@ -1641,9 +1576,15 @@ export default function App() {
                 )}
 
                 <div className="space-y-2">
-                  {!cameraActive && !isUploadingMock && !selectedFileForUpload ? (
+                  {!isUploadingMock && !selectedFileForUpload ? (
                     <div className="flex flex-col sm:flex-row gap-2">
-                      <button type="button" onClick={startCameraMock} className="flex-1 py-2 bg-rose-500 text-white rounded-xl text-xs font-bold hover:bg-rose-600 transition-colors flex items-center justify-center gap-1.5 shadow-sm"><Camera className="w-4 h-4" /><span>カメラを起動</span></button>
+                      <label className="flex-1 py-2 bg-rose-500 text-white rounded-xl text-xs font-bold hover:bg-rose-600 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm">
+                        <Camera className="w-4 h-4" /><span>カメラで撮影</span>
+                        <input type="file" accept="video/*" capture="environment" className="hidden" onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) setSelectedFileForUpload(e.target.files[0]);
+                          e.target.value = '';
+                        }} />
+                      </label>
                       
                       <label className="flex-1 py-2 bg-white text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-slate-200 shadow-sm">
                         <FileVideo className="w-4 h-4" /><span>動画ファイルを選択</span>
@@ -1660,25 +1601,6 @@ export default function App() {
                         <button type="button" onClick={() => handleYoutubeUpload(selectedFileForUpload)} className="flex-1 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded-lg text-xs font-bold transition-colors shadow-sm">アップロード開始</button>
                         <button type="button" onClick={() => setSelectedFileForUpload(null)} className="px-3 py-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-bold transition-colors">取消</button>
                       </div>
-                    </div>
-                  ) : cameraActive && !isUploadingMock ? (
-                    <div className="bg-slate-900 rounded-xl overflow-hidden p-3 space-y-3 relative">
-                      <video ref={videoRef} autoPlay playsInline muted className="w-full h-40 bg-slate-800 rounded-lg object-cover" />
-                      
-                      <div className="flex gap-2 items-center justify-between">
-                        {!isRecording ? (
-                          <button type="button" onClick={startRecording} className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1"><Video className="w-4 h-4" />録画開始</button>
-                        ) : (
-                          <button type="button" onClick={stopRecording} className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-red-400 font-bold rounded-lg text-xs flex items-center justify-center gap-1"><StopCircle className="w-4 h-4 animate-pulse" />録画停止</button>
-                        )}
-                        <button type="button" onClick={stopCameraMock} className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-bold">閉じる</button>
-                      </div>
-                      
-                      {recordedBlob && !isRecording && (
-                        <div className="pt-2 border-t border-slate-700 animate-in fade-in zoom-in-95">
-                          <button type="button" onClick={() => handleYoutubeUpload(recordedBlob)} className="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5"><Upload className="w-4 h-4" />録画した動画をアップロード</button>
-                        </div>
-                      )}
                     </div>
                   ) : (
                     <div className="bg-slate-100 p-4 rounded-xl text-center space-y-2 border border-slate-200">
