@@ -652,24 +652,35 @@ export default function App() {
 
   const renderVideoGallery = () => {
     const videoList = [];
+    
+    // 全記録の中から動画URLを抽出し、1つのリストに平坦化する
     activeBirdLogs.forEach(log => {
       let urls = [];
-      if (log.videoUrls && log.videoUrls.length > 0) {
+      
+      // 新仕様: videoUrls配列が存在する場合はそれを優先
+      if (Array.isArray(log.videoUrls) && log.videoUrls.length > 0) {
         urls = log.videoUrls;
-      } else if (log.videoUrl) {
+      } 
+      // 旧仕様: videoUrl(単一文字列)のみが存在する場合
+      else if (log.videoUrl && typeof log.videoUrl === 'string') {
         urls = [log.videoUrl];
       }
       
+      // 同日に複数ある動画を個別のサムネイルとしてリストに追加
       urls.forEach((url, index) => {
-        videoList.push({
-          date: log.date,
-          url: url,
-          memo: log.memo,
-          id: `${log.id}_${index}`
-        });
+        if (url && typeof url === 'string' && url.trim() !== '') {
+          videoList.push({
+            date: log.date,
+            url: url.trim(),
+            memo: log.memo,
+            // 同日の複数動画でもキーが被らないようインデックスを付与
+            id: `${log.id}_vid_${index}`
+          });
+        }
       });
     });
 
+    // 日付の降順（新しい順）に並べ替え
     videoList.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     const grouped = {};
