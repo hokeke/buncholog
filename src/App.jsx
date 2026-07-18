@@ -156,6 +156,10 @@ export default function App() {
   const [confirmMessage, setConfirmMessage] = useState('');
   const [confirmAction, setConfirmAction] = useState(null);
 
+  // Swipe Action States
+  const [touchStart, setTouchStart] = useState(null);
+  const [touchEnd, setTouchEnd] = useState(null);
+
   // Custom Firebase Setup States
   const [firebaseSetupInput, setFirebaseSetupInput] = useState('');
   const [firebaseSetupError, setFirebaseSetupError] = useState('');
@@ -662,6 +666,44 @@ export default function App() {
     ? [...activeBirdLogs].sort((a, b) => new Date(b.date) - new Date(a.date))[0]?.weight 
     : null;
 
+  const handleTouchStart = (e) => {
+    setTouchEnd(null);
+    setTouchStart({ x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY });
+  };
+
+  const handleTouchMove = (e) => {
+    setTouchEnd({ x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY });
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd || birds.length <= 1) return;
+    
+    const distanceX = touchStart.x - touchEnd.x;
+    const distanceY = Math.abs(touchStart.y - touchEnd.y);
+    
+    // 縦スクロールと誤認しないための判定（Y方向の移動量が多ければ無視）
+    if (distanceY > Math.abs(distanceX)) return;
+
+    // スワイプ判定のしきい値(px)
+    const isLeftSwipe = distanceX > 50;
+    const isRightSwipe = distanceX < -50;
+
+    if (isLeftSwipe || isRightSwipe) {
+      const currentIndex = birds.findIndex(b => b.id === activeBirdId);
+      if (currentIndex === -1) return;
+
+      if (isLeftSwipe) {
+        // 次の文鳥へ（最後なら最初に戻る）
+        const nextIndex = (currentIndex + 1) % birds.length;
+        setActiveBirdId(birds[nextIndex].id);
+      } else if (isRightSwipe) {
+        // 前の文鳥へ（最初なら最後に戻る）
+        const prevIndex = (currentIndex - 1 + birds.length) % birds.length;
+        setActiveBirdId(birds[prevIndex].id);
+      }
+    }
+  };
+
   const extractYouTubeId = (url) => {
     // ShortsのURL形式（/shorts/）にも対応した正規表現に更新
     const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
@@ -833,7 +875,7 @@ export default function App() {
           )}
         </div>
 
-        <div className="relative w-full overflow-x-auto">
+        <div className="relative w-full overflow-x-auto" onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()}>
           <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto min-w-[500px]">
             {[0, 0.25, 0.5, 0.75, 1].map((p, i) => {
               const y = paddingTop + p * (height - paddingTop - paddingBottom);
@@ -1321,7 +1363,7 @@ export default function App() {
           </div>
         </main>
       ) : (
-        <main className="max-w-4xl mx-auto px-4 pt-6 space-y-6">
+        <main className="max-w-4xl mx-auto px-4 pt-6 space-y-6" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
           
           <div className="bg-gradient-to-r from-rose-400 to-rose-300 text-white p-5 rounded-2xl shadow-xl shadow-rose-400/10 flex items-center gap-4 relative overflow-hidden">
             <div className="absolute right-0 top-0 opacity-10 translate-x-4 -translate-y-4"><Feather className="w-32 h-32 rotate-45" /></div>
