@@ -150,6 +150,7 @@ export default function App() {
   const [isUploadingMock, setIsUploadingMock] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedFileForUpload, setSelectedFileForUpload] = useState(null);
+  const selectedFileRef = useRef(null);
 
   // Custom Dialog States
   const [alertMessage, setAlertMessage] = useState('');
@@ -348,6 +349,12 @@ export default function App() {
   };
 
   const handleYoutubeUpload = async (fileBlob) => {
+    // prefer passed blob, otherwise use ref-stored file
+    if (!fileBlob) fileBlob = selectedFileRef.current;
+    if (!fileBlob) {
+      setAlertMessage('動画ファイルが選択されていません。');
+      return;
+    }
     if (!youtubeConfig.clientId) {
       setAlertMessage('YouTube連携が設定されていません。\n右上の「設定アイコン」からクライアントIDを登録してください。');
       return;
@@ -407,6 +414,8 @@ export default function App() {
                   const uploadedUrl = `https://www.youtube.com/watch?v=${responseData.id}`;
                   setLogVideoUrls(prev => [...prev, uploadedUrl]);
                   setAlertMessage('YouTubeへのアップロードが完了しました！\n動画の処理が終わるまで再生できない場合があります。');
+                  // clear references to free memory
+                  selectedFileRef.current = null;
                   setSelectedFileForUpload(null);
                 } else {
                   setAlertMessage('動画本体のアップロードエラー: ' + uploadXhr.responseText);
@@ -416,10 +425,16 @@ export default function App() {
               
               uploadXhr.onerror = () => {
                 setAlertMessage('動画のアップロード中に通信エラーが発生しました。');
+                // clear references
+                selectedFileRef.current = null;
+                setSelectedFileForUpload(null);
                 setIsUploadingMock(false);
               };
 
               uploadXhr.send(fileBlob);
+              // free local references as browser owns the upload stream
+              selectedFileRef.current = null;
+              setSelectedFileForUpload(null);
             } else {
               setAlertMessage('アップロードの初期化に失敗しました: ' + initXhr.responseText);
               setIsUploadingMock(false);
@@ -428,6 +443,9 @@ export default function App() {
           
           initXhr.onerror = () => {
             setAlertMessage('YouTube APIとの通信エラーが発生しました。');
+            // clear references
+            selectedFileRef.current = null;
+            setSelectedFileForUpload(null);
             setIsUploadingMock(false);
           };
 
@@ -435,6 +453,8 @@ export default function App() {
           
         } catch (error) {
           setAlertMessage('予期せぬエラーが発生しました: ' + error.message);
+          selectedFileRef.current = null;
+          setSelectedFileForUpload(null);
           setIsUploadingMock(false);
         }
       },
@@ -1600,7 +1620,11 @@ export default function App() {
                       <label className="flex-1 py-2 bg-rose-500 text-white rounded-xl text-xs font-bold hover:bg-rose-600 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm">
                         <Camera className="w-4 h-4" /><span>カメラで撮影</span>
                         <input type="file" accept="video/*" capture="environment" className="hidden" onChange={(e) => {
-                          if (e.target.files && e.target.files[0]) setSelectedFileForUpload(e.target.files[0]);
+                          if (e.target.files && e.target.files[0]) {
+                            const f = e.target.files[0];
+                            selectedFileRef.current = f; // store in ref to avoid storing large Blob in state
+                            setSelectedFileForUpload(f.name);
+                          }
                           e.target.value = '';
                         }} />
                       </label>
@@ -1608,17 +1632,21 @@ export default function App() {
                       <label className="flex-1 py-2 bg-white text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-slate-200 shadow-sm">
                         <FileVideo className="w-4 h-4" /><span>動画ファイルを選択</span>
                         <input type="file" accept="video/*" className="hidden" onChange={(e) => {
-                          if (e.target.files && e.target.files[0]) setSelectedFileForUpload(e.target.files[0]);
+                          if (e.target.files && e.target.files[0]) {
+                            const f = e.target.files[0];
+                            selectedFileRef.current = f;
+                            setSelectedFileForUpload(f.name);
+                          }
                           e.target.value = ''; // Reset input
                         }} />
                       </label>
                     </div>
                   ) : selectedFileForUpload && !isUploadingMock ? (
                     <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 text-center space-y-3">
-                      <p className="text-[10px] font-bold text-blue-800 truncate px-2">📎 {selectedFileForUpload.name}</p>
+                      <p className="text-[10px] font-bold text-blue-800 truncate px-2">📎 {typeof selectedFileForUpload === 'string' ? selectedFileForUpload : selectedFileForUpload.name}</p>
                       <div className="flex gap-2">
-                        <button type="button" onClick={() => handleYoutubeUpload(selectedFileForUpload)} className="flex-1 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded-lg text-xs font-bold transition-colors shadow-sm">アップロード開始</button>
-                        <button type="button" onClick={() => setSelectedFileForUpload(null)} className="px-3 py-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-bold transition-colors">取消</button>
+                        <button type="button" onClick={() => handleYoutubeUpload(selectedFileRef.current)} className="flex-1 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded-lg text-xs font-bold transition-colors shadow-sm">アップロード開始</button>
+                        <button type="button" onClick={() => { selectedFileRef.current = null; setSelectedFileForUpload(null); }} className="px-3 py-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-bold transition-colors">取消</button>
                       </div>
                     </div>
                   ) : (
