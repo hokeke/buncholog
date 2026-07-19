@@ -113,7 +113,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [currentTab, setCurrentTab] = useState('dashboard');
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(new Date(Date.now() + 9 * 60 * 60 * 1000));
 
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [selectedLogDate, setSelectedLogDate] = useState('');
@@ -137,6 +137,13 @@ export default function App() {
   const [youtubeConfig, setYoutubeConfig] = useState({ clientId: '', apiKey: '' });
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [tempYoutubeConfig, setTempYoutubeConfig] = useState({ clientId: '', apiKey: '' });
+
+  const JST_OFFSET = 9 * 60 * 60 * 1000;
+  const getJstNow = () => new Date(Date.now() + JST_OFFSET);
+  const formatDateToIso = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const getTodayDateString = () => formatDateToIso(getJstNow());
+  const compareDateStrings = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  const parseIsoDateString = (dateStr) => dateStr.split('-').map((value) => parseInt(value, 10));
 
   const [graphRange, setGraphRange] = useState('1M');
 
@@ -293,7 +300,7 @@ export default function App() {
           newLogsObj[log.birdId].push(log);
         });
         for (const key in newLogsObj) {
-          newLogsObj[key].sort((a, b) => new Date(a.date) - new Date(b.date));
+          newLogsObj[key].sort((a, b) => compareDateStrings(a.date, b.date));
         }
         setLogs(newLogsObj);
         setIsLoading(false);
@@ -314,7 +321,7 @@ export default function App() {
   const activeBirdLogs = logs[activeBirdId] || [];
 
   const getMoltingHistory = (birdLogs) => {
-    const sorted = [...birdLogs].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const sorted = [...birdLogs].sort((a, b) => compareDateStrings(a.date, b.date));
     const history = {};
     let molting = false;
     sorted.forEach(log => {
@@ -330,7 +337,7 @@ export default function App() {
   const getMoltingStatusOnDate = (dateStr) => {
     const sortedPastLogs = [...activeBirdLogs]
       .filter(l => l.date <= dateStr)
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
+      .sort((a, b) => compareDateStrings(a.date, b.date));
 
     let molting = false;
     sortedPastLogs.forEach(log => {
@@ -437,7 +444,7 @@ export default function App() {
   };
 
   const openLogModal = (dateStr = '') => {
-    const todayStr = dateStr || new Date().toISOString().split('T')[0];
+    const todayStr = dateStr || getTodayDateString();
     const existingLog = activeBirdLogs.find(l => l.date === todayStr);
 
     setSelectedLogDate(todayStr);
@@ -586,23 +593,24 @@ export default function App() {
   };
 
   const getFilteredLogs = () => {
-    const sorted = [...activeBirdLogs].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const sorted = [...activeBirdLogs].sort((a, b) => compareDateStrings(a.date, b.date));
     if (sorted.length === 0) return [];
     if (graphRange === 'ALL') return sorted;
 
-    const now = new Date();
-    let cutoff = new Date();
+    const now = getJstNow();
+    let cutoff = new Date(now.getTime());
     if (graphRange === '1W') cutoff.setDate(now.getDate() - 7);
     else if (graphRange === '1M') cutoff.setMonth(now.getMonth() - 1);
     else if (graphRange === '3M') cutoff.setMonth(now.getMonth() - 3);
 
-    return sorted.filter(l => new Date(l.date) >= cutoff);
+    const cutoffStr = formatDateToIso(cutoff);
+    return sorted.filter(l => l.date >= cutoffStr);
   };
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getTodayDateString();
   const todayLog = activeBirdLogs.find(l => l.date === todayStr);
   const latestWeight = activeBirdLogs.length > 0 
-    ? [...activeBirdLogs].sort((a, b) => new Date(b.date) - new Date(a.date))[0]?.weight 
+    ? [...activeBirdLogs].sort((a, b) => compareDateStrings(b.date, a.date))[0]?.weight 
     : null;
 
   const handleTouchStart = (e) => {
@@ -681,7 +689,7 @@ export default function App() {
     });
 
     // 日付の降順（新しい順）に並べ替え
-    videoList.sort((a, b) => new Date(b.date) - new Date(a.date));
+    videoList.sort((a, b) => compareDateStrings(b.date, a.date));
 
     const grouped = {};
     videoList.forEach(v => {
@@ -835,8 +843,8 @@ export default function App() {
               const x = getX(i);
               const showLabel = chartData.length <= 10 || i % Math.ceil(chartData.length / 7) === 0 || i === chartData.length - 1;
               if (!showLabel) return null;
-              const dateObj = new Date(d.date);
-              return <text key={i} x={x} y={height - paddingBottom + 16} textAnchor="middle" fill="#94A3B8" className="text-[9px] font-medium">{`${dateObj.getMonth() + 1}/${dateObj.getDate()}`}</text>;
+              const [year, month, day] = parseIsoDateString(d.date);
+              return <text key={i} x={x} y={height - paddingBottom + 16} textAnchor="middle" fill="#94A3B8" className="text-[9px] font-medium">{`${month}/${day}`}</text>;
             })}
             <text x={paddingLeft - 8} y={paddingTop - 5} textAnchor="end" fill="#F43F5E" className="text-[9px] font-bold">g (体重)</text>
             {[minWeight, (minWeight + maxWeight) / 2, maxWeight].map((val, i) => (
@@ -975,7 +983,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `${activeBird.name}_健康ログ_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute("download", `${activeBird.name}_健康ログ_${getTodayDateString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
