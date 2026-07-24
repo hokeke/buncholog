@@ -144,6 +144,25 @@ export default function App() {
   const getTodayDateString = () => formatDateToIso(getJstNow());
   const compareDateStrings = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
   const parseIsoDateString = (dateStr) => dateStr.split('-').map((value) => parseInt(value, 10));
+  
+  // Get year/month/day in JST using Intl.DateTimeFormat to ensure timezone consistency
+  const getJstDateParts = (date) => {
+    const formatter = new Intl.DateTimeFormat('ja-JP', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      timeZone: 'Asia/Tokyo'
+    });
+    const parts = {};
+    formatter.formatToParts(date).forEach(({ type, value }) => {
+      parts[type] = value;
+    });
+    return {
+      year: parseInt(parts.year, 10),
+      month: parseInt(parts.month, 10) - 1, // 0-indexed for JS Date
+      day: parseInt(parts.day, 10)
+    };
+  };
 
   const [graphRange, setGraphRange] = useState('1M');
 
@@ -902,14 +921,39 @@ export default function App() {
   };
 
   const renderCalendar = () => {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
+    // Get JST year/month from currentDate
+    const jstParts = getJstDateParts(currentDate);
+    const year = jstParts.year;
+    const month = jstParts.month;
+    
     const firstDayIndex = new Date(year, month, 1).getDay();
     const totalDays = new Date(year, month + 1, 0).getDate();
     const days = Array(firstDayIndex).fill(null).concat(Array.from({ length: totalDays }, (_, i) => i + 1));
 
-    const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
-    const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+    const prevMonth = () => {
+      let newMonth = month - 1;
+      let newYear = year;
+      if (newMonth < 0) {
+        newMonth = 11;
+        newYear--;
+      }
+      // Create JST date by using UTC and adding JST offset
+      const utcDate = new Date(Date.UTC(newYear, newMonth, 1));
+      const jstDate = new Date(utcDate.getTime() + JST_OFFSET);
+      setCurrentDate(jstDate);
+    };
+    
+    const nextMonth = () => {
+      let newMonth = month + 1;
+      let newYear = year;
+      if (newMonth > 11) {
+        newMonth = 0;
+        newYear++;
+      }
+      const utcDate = new Date(Date.UTC(newYear, newMonth, 1));
+      const jstDate = new Date(utcDate.getTime() + JST_OFFSET);
+      setCurrentDate(jstDate);
+    };
 
     return (
       <div className="bg-white rounded-2xl border border-rose-100 shadow-sm overflow-hidden">
