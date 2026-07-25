@@ -125,6 +125,12 @@ export default function App() {
   const [newVideoUrlInput, setNewVideoUrlInput] = useState(''); // Manual URL input
   const [logMemo, setLogMemo] = useState('');
 
+  // Quick dashboard input for today's weight and food
+  const [dashboardWeight, setDashboardWeight] = useState('');
+  const [dashboardFood, setDashboardFood] = useState('');
+  const [isEditingDashboardWeight, setIsEditingDashboardWeight] = useState(false);
+  const [isEditingDashboardFood, setIsEditingDashboardFood] = useState(false);
+
   const [isBirdModalOpen, setIsBirdModalOpen] = useState(false);
   const [editingBird, setEditingBird] = useState(null);
   const [birdName, setBirdName] = useState('');
@@ -554,6 +560,51 @@ export default function App() {
     await setDoc(docRef, newLogEntry);
     
     setIsLogModalOpen(false);
+  };
+
+  // Quick save for dashboard's simple input (weight & food only)
+  const saveDashboardQuickLog = async () => {
+    if (!user || !activeBirdId) return;
+    
+    const todayDate = getTodayDateString();
+    const existingLog = activeBirdLogs.find(l => l.date === todayDate);
+    
+    const logId = `${activeBirdId}_${todayDate}`;
+    const newLogEntry = {
+      id: logId,
+      birdId: activeBirdId,
+      date: todayDate,
+      weight: dashboardWeight ? parseFloat(dashboardWeight) : (existingLog?.weight || null),
+      food: dashboardFood ? parseFloat(dashboardFood) : (existingLog?.food || null),
+      poop: existingLog?.poop || 'normal',
+      moltEvent: existingLog?.moltEvent || '',
+      videoUrl: existingLog?.videoUrl || '',
+      videoUrls: existingLog?.videoUrls || [],
+      memo: existingLog?.memo || ''
+    };
+
+    const docRef = doc(db, 'artifacts', appId, 'logs', logId);
+    await setDoc(docRef, newLogEntry);
+    setAlertMessage('本日の記録を更新しました！');
+  };
+
+  // Auto-save on blur for dashboard quick input
+  const handleDashboardBlur = async (field) => {
+    const value = field === 'weight' ? dashboardWeight : dashboardFood;
+    
+    // Only save if value is not empty
+    if (value && value.trim() !== '') {
+      await saveDashboardQuickLog();
+    }
+    
+    // Exit edit mode (clear empty inputs)
+    if (field === 'weight') {
+      if (!value || value.trim() === '') setDashboardWeight('');
+      setIsEditingDashboardWeight(false);
+    } else {
+      if (!value || value.trim() === '') setDashboardFood('');
+      setIsEditingDashboardFood(false);
+    }
   };
 
   const deleteLog = (dateStr) => {
@@ -1435,17 +1486,65 @@ export default function App() {
                     <p className="text-[10px] font-semibold text-slate-400">今日の記録</p>
                     <h4 className="font-bold text-slate-800 text-sm mt-0.5">本日({todayStr})の状態</h4>
                   </div>
-                  {todayLog ? (
-                    <div className="space-y-2 mt-4">
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-600 bg-slate-50 p-2 rounded-lg"><span>⚖️ 体重:</span><span className="text-rose-500">{todayLog.weight ? `${todayLog.weight}g` : '未記録'}</span></div>
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-600 bg-slate-50 p-2 rounded-lg"><span>🥣 ごはん:</span><span className="text-amber-500">{todayLog.food ? `${todayLog.food}g` : '未記録'}</span></div>
+                  <div className="mt-4 space-y-2">
+                    {/* Weight Row */}
+                    <div>
+                      {isEditingDashboardWeight ? (
+                        <input 
+                          type="number" 
+                          step="0.1" 
+                          placeholder={todayLog?.weight ? `${todayLog.weight}` : '例: 45.5'} 
+                          value={dashboardWeight}
+                          onChange={(e) => setDashboardWeight(e.target.value)}
+                          onBlur={() => handleDashboardBlur('weight')}
+                          autoFocus
+                          className="w-full px-2 py-1.5 rounded-lg border border-rose-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-400"
+                        />
+                      ) : (
+                        <div 
+                          onClick={() => setIsEditingDashboardWeight(true)}
+                          className="flex items-center justify-between text-xs font-bold text-slate-600 bg-slate-50 p-2 rounded-lg cursor-pointer hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                        >
+                          <span>⚖️ 体重</span>
+                          <span className="text-rose-500">{todayLog?.weight ? `${todayLog.weight}g` : '—'}</span>
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <div className="mt-4">
-                      <p className="text-xs text-slate-400 mb-3">本日の記録はまだありません。</p>
-                      <button onClick={() => openLogModal(todayStr)} className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-500 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1"><Plus className="w-3.5 h-3.5" /> 記録する</button>
+
+                    {/* Food Row */}
+                    <div>
+                      {isEditingDashboardFood ? (
+                        <input 
+                          type="number" 
+                          step="0.1" 
+                          placeholder={todayLog?.food ? `${todayLog.food}` : '例: 8.5'} 
+                          value={dashboardFood}
+                          onChange={(e) => setDashboardFood(e.target.value)}
+                          onBlur={() => handleDashboardBlur('food')}
+                          autoFocus
+                          className="w-full px-2 py-1.5 rounded-lg border border-amber-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        />
+                      ) : (
+                        <div 
+                          onClick={() => setIsEditingDashboardFood(true)}
+                          className="flex items-center justify-between text-xs font-bold text-slate-600 bg-slate-50 p-2 rounded-lg cursor-pointer hover:bg-amber-50 hover:text-amber-600 transition-colors"
+                        >
+                          <span>🥣 ごはん</span>
+                          <span className="text-amber-500">{todayLog?.food ? `${todayLog.food}g` : '—'}</span>
+                        </div>
+                      )}
                     </div>
-                  )}
+
+                    {/* Detail record button */}
+                    {!isEditingDashboardWeight && !isEditingDashboardFood && (
+                      <button 
+                        onClick={() => openLogModal(todayStr)} 
+                        className="w-full py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-500 font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-1 mt-3"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> 詳細記録
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-sm flex flex-col justify-between">
                   <div><p className="text-[10px] font-semibold text-slate-400">最新の体重</p><h4 className="font-bold text-slate-800 text-sm mt-0.5">最後の測定体重</h4></div>
