@@ -144,12 +144,37 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [tempYoutubeConfig, setTempYoutubeConfig] = useState({ clientId: '', apiKey: '' });
 
-  const JST_OFFSET = 9 * 60 * 60 * 1000;
-  const getJstNow = () => new Date(Date.now() + JST_OFFSET);
-  const formatDateToIso = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-  const getTodayDateString = () => formatDateToIso(getJstNow());
+  // Get year/month/day in JST and return as ISO date string (YYYY-MM-DD)
+  const getTodayDateString = () => {
+    const formatter = new Intl.DateTimeFormat('ja-JP', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      timeZone: 'Asia/Tokyo'
+    });
+    const parts = {};
+    formatter.formatToParts(new Date()).forEach(({ type, value }) => {
+      parts[type] = value;
+    });
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  };
   const compareDateStrings = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
   const parseIsoDateString = (dateStr) => dateStr.split('-').map((value) => parseInt(value, 10));
+  
+  // Format a date to ISO format (YYYY-MM-DD) in JST
+  const formatDateToIso = (date) => {
+    const formatter = new Intl.DateTimeFormat('ja-JP', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      timeZone: 'Asia/Tokyo'
+    });
+    const parts = {};
+    formatter.formatToParts(date).forEach(({ type, value }) => {
+      parts[type] = value;
+    });
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  };
   
   // Get year/month/day in JST using Intl.DateTimeFormat to ensure timezone consistency
   const getJstDateParts = (date) => {
@@ -687,13 +712,25 @@ export default function App() {
     if (sorted.length === 0) return [];
     if (graphRange === 'ALL') return sorted;
 
-    const now = getJstNow();
-    let cutoff = new Date(now.getTime());
-    if (graphRange === '1W') cutoff.setDate(now.getDate() - 7);
-    else if (graphRange === '1M') cutoff.setMonth(now.getMonth() - 1);
-    else if (graphRange === '3M') cutoff.setMonth(now.getMonth() - 3);
+    // Get today's date in JST
+    const today = new Date();
+    const todayStr = formatDateToIso(today);
+    const [year, month, day] = parseIsoDateString(todayStr);
+    
+    let cutoffStr;
+    if (graphRange === '1W') {
+      const cutoff = new Date(year, month, day - 7);
+      cutoffStr = formatDateToIso(cutoff);
+    } else if (graphRange === '1M') {
+      const cutoff = new Date(year, month - 1, day);
+      cutoffStr = formatDateToIso(cutoff);
+    } else if (graphRange === '3M') {
+      const cutoff = new Date(year, month - 3, day);
+      cutoffStr = formatDateToIso(cutoff);
+    } else {
+      cutoffStr = todayStr;
+    }
 
-    const cutoffStr = formatDateToIso(cutoff);
     return sorted.filter(l => l.date >= cutoffStr);
   };
 
