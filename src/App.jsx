@@ -159,7 +159,10 @@ export default function App() {
     return `${parts.year}-${parts.month}-${parts.day}`;
   };
   const compareDateStrings = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
-  const parseIsoDateString = (dateStr) => dateStr.split('-').map((value) => parseInt(value, 10));
+  const parseIsoDateString = (dateStr) => {
+    const [year, month, day] = dateStr.split('-').map((value) => parseInt(value, 10));
+    return [year, month - 1, day]; // Convert month to 0-indexed for JS Date constructor
+  };
   
   // Format a date to ISO format (YYYY-MM-DD) in JST
   const formatDateToIso = (date) => {
@@ -367,6 +370,14 @@ export default function App() {
       unsubLogs();
     };
   }, [user]);
+
+  // Reset dashboard quick input fields when switching birds
+  useEffect(() => {
+    setDashboardWeight('');
+    setDashboardFood('');
+    setIsEditingDashboardWeight(false);
+    setIsEditingDashboardFood(false);
+  }, [activeBirdId]);
 
   const activeBird = birds.find(b => b.id === activeBirdId) || birds[0];
   const activeBirdLogs = logs[activeBirdId] || [];
@@ -712,7 +723,7 @@ export default function App() {
     if (sorted.length === 0) return [];
     if (graphRange === 'ALL') return sorted;
 
-    // Get today's date in JST
+    // Get today's date in JST (month is 0-indexed)
     const today = new Date();
     const todayStr = formatDateToIso(today);
     const [year, month, day] = parseIsoDateString(todayStr);
@@ -883,7 +894,7 @@ export default function App() {
 
   const renderInteractiveCharts = () => {
     const chartData = getFilteredLogs().filter(l => l.weight !== null || l.food !== null);
-    if (chartData.length < 2) {
+    if (chartData.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center h-64 bg-slate-50 rounded-xl border border-dashed border-slate-200 p-6 text-center text-slate-500">
           <BarChart2 className="w-12 h-12 text-slate-300 mb-2" />
@@ -892,6 +903,18 @@ export default function App() {
           <button onClick={() => openLogModal()} className="mt-4 px-4 py-2 bg-rose-400 text-white rounded-full text-xs font-semibold shadow hover:bg-rose-500 transition-colors flex items-center gap-1">
             <Plus className="w-3.5 h-3.5" /> 記録を追加する
           </button>
+        </div>
+      );
+    }
+
+    // If only 1 data point, show simplified view
+    if (chartData.length === 1) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64 bg-slate-50 rounded-xl border border-slate-200 p-6 text-center text-slate-500">
+          <BarChart2 className="w-12 h-12 text-slate-300 mb-2" />
+          <p className="font-medium text-sm">データが1件です</p>
+          <p className="text-xs text-slate-400 mt-1">もう1件以上の記録を追加すると、推移グラフが表示されます。</p>
+          <p className="text-xs text-slate-300 mt-2">現在の記録: {chartData[0].date}</p>
         </div>
       );
     }
